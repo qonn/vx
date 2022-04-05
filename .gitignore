@@ -1,0 +1,10 @@
+# Binaries for programs and plugins
+main
+vx
+*.exe
+*.exe~
+*.so
+*.dylib
+*.dll
+vls.log
+*.jsx

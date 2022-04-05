@@ -1,0 +1,46 @@
+let a = 1
+let b = 'hello world'
+let c = 1 + 2
+let d = 'hello' + 'world'
+let e = 'hello' + ('world' + 'and above')
+let f = 'test'
+let g = e
+let h = []
+let i = [1, 2, 3]
+let j = ['1', '2', '3']
+let k = [a, b, c]
+
+fn fn_a() {}
+fn fn_b() {}
+
+fn fn_c() {
+    let a = 0
+    let b = 1
+    let c = 2
+
+    fn fn_d() {
+
+    }
+}
+
+fn fn_d() {
+    return 1
+}
+
+fn fn_e() {
+    return 2
+}
+
+fn fn_f() {
+    let a = b
+
+    if 1 > 2 {
+        return 2
+    } else if 1 == 2 {
+        return 2
+    } else if 1 < 2 {
+        return 1
+    } else {
+        return 3
+    }
+}
