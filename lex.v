@@ -70,18 +70,35 @@ fn init_re() map[string]regex.RE {
 }
 
 pub fn(mut l Lexer) eat(v tok.Variant) tok.Token {
-	curr := l.curr
-	curr_v := curr.v
+	mut curr   := l.curr
+	mut curr_v := curr.v
 
 	if curr.v == .eof {
 		return l.curr
 	}
+
+	if v != .new_line && curr.v == .new_line {
+		for l.curr.v == .new_line {
+			l.curr = l.next()
+		}
+	}
+
+	curr   = l.curr
+	curr_v = curr.v
 
 	if curr.v != v {
 		panic('Unexpected token $curr_v, expecting $v')
 	}
 
 	l.curr = l.next()
+
+	return l.curr
+}
+
+pub fn(mut l Lexer) eat_new_lines() tok.Token {
+	for l.curr.v == .new_line {
+		l.curr = l.next()
+	}
 
 	return l.curr
 }
@@ -150,6 +167,9 @@ pub fn(mut l Lexer) next() tok.Token {
 		content_single_char := l.content[l.pos..(l.pos + 1)]
 
 		match content_single_char {
+			'`' {
+				return l.consume_js()
+			}
 			'\n' {
 				return l.advance_with_token(.new_line, 1)
 			}
@@ -198,11 +218,43 @@ pub fn(mut l Lexer) next() tok.Token {
 			',' {
 				return l.advance_with_token(.comma, 1)
 			}
+			'.' {
+				return l.advance_with_token(.dot, 1)
+			}
 			else {
 				l.pos += 1
 			}
 		}
 
+	}
+
+	return tok.new(.eof, tok.Span { l.pos, l.pos }, '', '')
+}
+
+pub fn(mut l Lexer) consume_js() tok.Token {
+	mut pos := l.pos + 1
+
+	for {
+		if pos >= l.len {
+			break
+		}
+
+		content_single_char_prev := l.content[(pos - 1)..(pos)] or { '' }
+		content_single_char_curr := l.content[pos..(pos + 1)]
+
+		match content_single_char_curr {
+			'`' {
+				if content_single_char_prev != '\\' {
+					raw := l.content[l.pos..(pos + 1)]
+					value := raw[1..(raw.len - 1)]
+					return l.advance_with_token_2(.js, pos - l.pos + 1, raw, value)
+				}
+			}
+
+			else {
+				pos += 1
+			}
+		}
 	}
 
 	return tok.new(.eof, tok.Span { l.pos, l.pos }, '', '')

@@ -12,6 +12,7 @@ pub enum Variant {
 	new_line
 	return_
 	enum_
+	js
 	rec
 	fn_
 	if_
@@ -38,6 +39,7 @@ pub enum Variant {
 	number
 	id
 	comma
+	dot
 	eof
 }
 

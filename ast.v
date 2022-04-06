@@ -2,19 +2,33 @@ module ast
 
 import lex
 
-struct Noop {}
+struct Program {
+pub:
+	statements []Statement
+}
+
+type Statement =
+	Module |
+	Variable |
+	Expression |
+	Function |
+	If |
+	Return |
+	Noop
+
+struct Module {
+pub:
+	id         string
+	statements []Statement
+}
+
+struct Variable {
+pub:
+	id   Identifier
+	expr Expression
+}
 
 struct Identifier {
-pub:
-	value string
-}
-
-struct String {
-pub:
-	value string
-}
-
-struct Number {
 pub:
 	value string
 }
@@ -22,14 +36,35 @@ pub:
 type Expression =
 	String |
 	Number |
+	Js |
 	Identifier |
 	BinaryExpression |
 	Array |
 	Noop
 
-struct Array {
+struct Function {
 pub:
-	items []Expression
+	id         Identifier
+	args       []FunctionArgument
+	statements []Statement
+	returning  Type
+}
+
+struct FunctionArgument {
+pub:
+	id         Identifier
+mut:
+	type_      Type
+}
+
+type Type =
+	Identifier | AutoInfer
+
+struct If {
+pub:
+	test   Expression
+	true_  []Statement
+	false_ []Statement
 }
 
 struct BinaryExpression {
@@ -49,49 +84,33 @@ pub enum Operator {
 	eq
 }
 
-struct FunctionArgument {
-pub:
-	id         Identifier
-	type_      ?Identifier
-}
-
-struct Function {
-pub:
-	id         Identifier
-	args       []FunctionArgument
-	statements []Statement
-}
-
-struct Variable {
-pub:
-	id   Identifier
-	expr Expression
-}
-
-struct If {
-pub:
-	test   Expression
-	true_  []Statement
-	false_ []Statement
-}
-
 struct Return {
 pub:
 	expr Expression
 }
 
-type Statement =
-	Variable |
-	Expression |
-	Function |
-	If |
-	Return |
-	Noop
-
-struct Program {
+struct String {
 pub:
-	statements []Statement
+	value string
 }
+
+struct Number {
+pub:
+	value string
+}
+
+struct Js {
+pub:
+	value string
+}
+
+struct Array {
+pub:
+	items []Expression
+}
+
+struct AutoInfer {}
+struct Noop {}
 
 pub fn gen(input string) Program {
 	mut lex := lex.new(input)
@@ -127,6 +146,9 @@ pub fn gen_statement(mut l lex.Lexer) ?Statement {
 	token := l.curr()
 
 	return match token.v {
+		.mod {
+			Statement(gen_module(mut l))
+		}
 		.let {
 			Statement(gen_variable(mut l))
 		}
@@ -155,6 +177,42 @@ pub fn gen_statement(mut l lex.Lexer) ?Statement {
 	}
 }
 
+pub fn gen_module(mut l lex.Lexer) Module {
+	l.eat(.mod)
+
+	mut ids := []string{}
+
+	for {
+		token := l.curr()
+
+		if l.eof() || token.v == .l_brace {
+			break
+		}
+
+		if token.v == .id {
+			ids << token.value
+			l.eat(.id)
+		}
+
+		if token.v == .dot {
+			l.eat(.dot)
+		}
+	}
+
+	l.eat(.l_brace)
+
+	statements := gen_statements(mut l)
+
+	l.eat(.r_brace)
+
+	id := ids.join(".")
+
+	return Module {
+		id,
+		statements
+	}
+}
+
 pub fn gen_variable(mut l lex.Lexer) Variable {
 	l.eat(.let)
 
@@ -175,11 +233,14 @@ pub fn gen_function(mut l lex.Lexer) Function {
 
 	id := gen_identifier(mut l)
 
-	l.eat(.l_paren)
+	mut args := gen_function_arguments(mut l)
 
-	mut args := []FunctionArgument{}
+	mut returning := Type(AutoInfer{})
 
-	l.eat(.r_paren)
+	if l.curr().v == .colon {
+		l.eat(.colon)
+		returning = Type(gen_identifier(mut l))
+	}
 
 	l.eat(.l_brace)
 
@@ -206,8 +267,49 @@ pub fn gen_function(mut l lex.Lexer) Function {
 	return Function {
 		id,
 		args,
-		statements
+		statements,
+		returning
 	}
+}
+
+pub fn gen_function_arguments(mut l lex.Lexer) []FunctionArgument {
+	mut args := []FunctionArgument{}
+
+	l.eat(.l_paren)
+
+	for {
+		if l.eof() || l.curr().v == .r_paren {
+			break
+		}
+
+		if l.curr().v == .new_line {
+			l.eat(.new_line)
+		}
+
+		args << gen_function_argument(mut l)
+	}
+
+	l.eat(.r_paren)
+
+	return args
+}
+
+pub fn gen_function_argument(mut l lex.Lexer) FunctionArgument {
+	id := gen_identifier(mut l)
+
+	mut type_ := Type(AutoInfer {})
+
+	if l.curr().v == .colon {
+		l.eat(.colon)
+		type_ = Type(gen_identifier(mut l))
+	}
+
+	fa := FunctionArgument {
+		id,
+		type_
+	}
+
+	return fa
 }
 
 pub fn gen_if(mut l lex.Lexer) If {
@@ -278,11 +380,19 @@ pub fn gen_identifier(mut l lex.Lexer) Identifier {
 pub fn gen_expression(mut l lex.Lexer) Expression {
 	mut token := l.curr()
 
+	if l.curr().v == .new_line {
+		token = l.eat_new_lines()
+	}
+
 	if token.v == .l_paren {
 		token = l.eat(.l_paren)
 	}
 
 	mut expr := match token.v {
+		.js {
+			Expression(gen_js(mut l))
+		}
+
 		.number {
 			Expression(gen_number(mut l))
 		}
@@ -320,6 +430,10 @@ pub fn gen_expression(mut l lex.Lexer) Expression {
 		token = l.eat(.r_paren)
 	}
 
+	if l.curr().v == .new_line {
+		l.eat_new_lines()
+	}
+
 	return expr
 }
 
@@ -329,6 +443,10 @@ pub fn gen_array(mut l lex.Lexer) Array {
 	mut items := []Expression{}
 
 	for {
+		if l.curr().v == .new_line {
+			l.eat_new_lines()
+		}
+
 		if l.curr().v == .eof || l.curr().v == .r_square {
 			break
 		}
@@ -338,6 +456,10 @@ pub fn gen_array(mut l lex.Lexer) Array {
 		items << item
 
 		if l.curr().v == .r_square {
+			break
+		}
+
+		if l.curr().v != .comma {
 			break
 		}
 
@@ -394,6 +516,16 @@ pub fn gen_binary_expression(mut l lex.Lexer, left Expression) BinaryExpression 
 		op,
 		left,
 		right,
+	}
+}
+
+pub fn gen_js(mut l lex.Lexer) Js {
+	value := l.curr().value
+
+	l.eat(.js)
+
+	return Js {
+		value
 	}
 }
 

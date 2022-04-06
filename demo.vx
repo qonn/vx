@@ -8,8 +8,20 @@ let g = e
 let h = []
 let i = [1, 2, 3]
 let j = ['1', '2', '3']
-let k = [a, b, c]
-
+let k = [a,b,c]
+let l = [
+    1,
+    2,
+    3
+]
+let m = 1 + 2
+let n = (1 + 2)
+let o = [
+    'hello' +
+    ('world' + 'and above'),
+    '2',
+    '3'
+]
 fn fn_a() {}
 fn fn_b() {}
 
@@ -42,5 +54,11 @@ fn fn_f() {
         return 1
     } else {
         return 3
+    }
+}
+
+mod Boolean {
+    fn to_string(item: Boolean): String {
+        return `#{item}.toString()`
     }
 }
