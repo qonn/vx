@@ -2,7 +2,7 @@ module main
 
 import os
 import time
-import ast
+import parse
 import gen
 
 fn main() {
@@ -20,7 +20,7 @@ fn main() {
 				return
 			}
 
-			ast := ast.gen(input)
+			ast := parse.run(input)
 			output := gen.run(ast)
 
 			os.write_file(file.replace('.vx', '.jsx'), output) or {
